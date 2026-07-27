@@ -45,12 +45,3 @@ ongoing, with progress committed daily.
 
 
 
-quantvpn/
-├── src/
-│   ├── tunnel/          # core VPN tunnel logic
-│   ├── crypto/          # PQC handshake
-│   └── entropy_monitor/ # crosstalk-leakage detection
-├── tests/
-└── docs/
-    └── architecture.md  # detailed design decisions
-```
