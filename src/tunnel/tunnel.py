@@ -40,3 +40,4 @@ class Tunnel:
         if self.sock:
             self.sock.close()
         self.connected = False
+    
