@@ -50,3 +50,26 @@ class Tunnel:
         if self.sock:
             self.sock.close()
         self.connected = False
+class TunnelServer:
+    def __init__(self, host: str, port: int, shared_secret: bytes = None):
+        self.host = host
+        self.port = port
+        self.shared_secret = shared_secret
+        self.listen_sock = None
+
+    def start(self) -> None:
+        self.listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.listen_sock.bind((self.host, self.port))
+        self.listen_sock.listen(5)
+
+    def accept(self) -> "Tunnel":
+        conn, addr = self.listen_sock.accept()
+        peer_tunnel = Tunnel(host=addr[0], port=addr[1], shared_secret=self.shared_secret)
+        peer_tunnel.sock = conn
+        peer_tunnel.connected = True
+        return peer_tunnel
+
+    def stop(self) -> None:
+        if self.listen_sock:
+            self.listen_sock.close()
