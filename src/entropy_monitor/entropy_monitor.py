@@ -41,3 +41,38 @@ class EntropyMonitor:
             "deviation": deviation,
             "anomaly": anomaly
         }
+class EntropyMonitor:
+    def __init__(self, window_size: int = 50, threshold: float = 0.3, on_anomaly=None):
+        self.window_size = window_size
+        self.threshold = threshold
+        self.window = []
+        self.baseline = None
+        self.on_anomaly = on_anomaly
+
+    def update(self, value) -> dict:
+        self.window.append(value)
+        if len(self.window) > self.window_size:
+            self.window.pop(0)
+
+        current_entropy = shannon_entropy(self.window)
+
+        if self.baseline is None and len(self.window) == self.window_size:
+            self.baseline = current_entropy
+
+        anomaly = False
+        deviation = 0.0
+        if self.baseline is not None:
+            deviation = abs(current_entropy - self.baseline)
+            anomaly = deviation > self.threshold
+
+        result = {
+            "entropy": current_entropy,
+            "baseline": self.baseline,
+            "deviation": deviation,
+            "anomaly": anomaly
+        }
+
+        if anomaly and self.on_anomaly is not None:
+            self.on_anomaly(result)
+
+        return result
