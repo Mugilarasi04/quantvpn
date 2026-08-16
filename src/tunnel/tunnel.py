@@ -3,14 +3,15 @@ from src.crypto.aead import encrypt, decrypt
 
 
 class Tunnel:
-    def __init__(self, host: str, port: int, shared_secret: bytes = None):
+    def __init__(self, host: str, port: int, shared_secret: bytes = None, peer_public_key: bytes = None):
         self.host = host
         self.port = port
         self.connected = False
         self.sock = None
         self.shared_secret = shared_secret
+        self.peer_public_key = peer_public_key
+        
         self.monitor = None
-
     def connect(self) -> bool:
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -46,7 +47,18 @@ class Tunnel:
 
             if self.monitor is not None:
                 for byte in plaintext:
-                    self.monitor.update(byte)
+                    result = self.monitor.update(byte)
+                    if result["anomaly"] and self.peer_public_key is not None:
+                        from src.entropy_monitor.response import KeyRotationResponder
+                        if not hasattr(self, "_responder"):
+                            self._responder = KeyRotationResponder()
+                        _, new_secret = self._responder.respond(result, self.peer_public_key)
+                        self.shared_secret = new_secret
+
+            return plaintext
+        except socket.error:
+            self.connected = False
+            return b""
 
             return plaintext
         except socket.error:
