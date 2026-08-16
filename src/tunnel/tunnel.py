@@ -76,7 +76,7 @@ class Tunnel:
                 if self.kem is None:
                     raise ValueError("Received rekey message but no KEM keypair to decapsulate it")
                 self.shared_secret = self.kem.decapsulate(payload)
-                return self.receive(buffer_size)
+                return b""
 
             plaintext = decrypt(self.shared_secret, payload)
 
