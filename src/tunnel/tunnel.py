@@ -9,6 +9,7 @@ class Tunnel:
         self.connected = False
         self.sock = None
         self.shared_secret = shared_secret
+        self.monitor = None
 
     def connect(self) -> bool:
         try:
@@ -41,7 +42,13 @@ class Tunnel:
             raw = self.sock.recv(buffer_size)
             if not raw:
                 return b""
-            return decrypt(self.shared_secret, raw)
+            plaintext = decrypt(self.shared_secret, raw)
+
+            if self.monitor is not None:
+                for byte in plaintext:
+                    self.monitor.update(byte)
+
+            return plaintext
         except socket.error:
             self.connected = False
             return b""
@@ -50,12 +57,15 @@ class Tunnel:
         if self.sock:
             self.sock.close()
         self.connected = False
+
+
 class TunnelServer:
-    def __init__(self, host: str, port: int, shared_secret: bytes = None):
+    def __init__(self, host: str, port: int, shared_secret: bytes = None, monitor_factory=None):
         self.host = host
         self.port = port
         self.shared_secret = shared_secret
         self.listen_sock = None
+        self.monitor_factory = monitor_factory
 
     def start(self) -> None:
         self.listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -68,6 +78,8 @@ class TunnelServer:
         peer_tunnel = Tunnel(host=addr[0], port=addr[1], shared_secret=self.shared_secret)
         peer_tunnel.sock = conn
         peer_tunnel.connected = True
+        if self.monitor_factory is not None:
+            peer_tunnel.monitor = self.monitor_factory()
         return peer_tunnel
 
     def stop(self) -> None:

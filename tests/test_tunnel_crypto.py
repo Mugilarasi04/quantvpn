@@ -25,6 +25,7 @@ def test_encrypted_send_receive():
         server_tunnel.sock = conn
         server_tunnel.connected = True
         server_tunnel.shared_secret = receiver_secret
+        server_tunnel.monitor = None
         received_data['msg'] = server_tunnel.receive()
         conn.close()
 
