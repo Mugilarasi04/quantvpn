@@ -1,9 +1,9 @@
 import threading
 from src.tunnel.tunnel import Tunnel, TunnelServer
 
+
 def test_server_accepts_and_receives():
-    secret = b"0" * 32  # dummy 32-byte key for this test
-    server = TunnelServer('localhost', 0, shared_secret=secret)
+    server = TunnelServer('localhost', 0)
     server.start()
     port = server.listen_sock.getsockname()[1]
 
@@ -17,7 +17,7 @@ def test_server_accepts_and_receives():
     thread = threading.Thread(target=run_server)
     thread.start()
 
-    client = Tunnel('localhost', port, shared_secret=secret)
+    client = Tunnel('localhost', port)
     client.connect()
     client.send(b"hello from client")
 

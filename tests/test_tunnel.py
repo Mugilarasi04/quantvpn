@@ -1,31 +1,31 @@
-import socket
 import threading
-from src.tunnel.tunnel import Tunnel
+from src.tunnel.tunnel import Tunnel, TunnelServer
 
 
-def start_server():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('localhost', 0))
-    s.listen(1)
-    port = s.getsockname()[1]
-    return s, port
+def test_connect_performs_handshake():
+    server = TunnelServer('localhost', 0)
+    server.start()
+    port = server.listen_sock.getsockname()[1]
 
+    server_state = {}
 
-def test_connect_to_real_server():
-    server_socket, port = start_server()
+    def run_server():
+        peer = server.accept()
+        server_state['tunnel'] = peer
 
-    def accept_connection():
-        conn, addr = server_socket.accept()
-        conn.close()
+    thread = threading.Thread(target=run_server)
+    thread.start()
 
-    server_thread = threading.Thread(target=accept_connection)
-    server_thread.start()
+    client = Tunnel('localhost', port)
+    result = client.connect()
 
-    t = Tunnel('localhost', port)
-    result = t.connect()
-
-    server_thread.join()
-    server_socket.close()
+    thread.join()
+    server.stop()
 
     assert result is True
-    assert t.connected is True
+    assert client.connected is True
+    assert client.shared_secret is not None
+    assert server_state['tunnel'].shared_secret == client.shared_secret
+
+    client.close()
+    server_state['tunnel'].close()

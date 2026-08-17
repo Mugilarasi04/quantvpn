@@ -1,9 +1,11 @@
 import socket
 import struct
 from src.crypto.aead import encrypt, decrypt
+from src.crypto.kem import KEM, encapsulate
 
 MSG_TYPE_DATA = b'D'
 MSG_TYPE_REKEY = b'R'
+MSG_TYPE_HANDSHAKE = b'H'
 
 
 def _recv_exact(sock, n):
@@ -48,9 +50,33 @@ class Tunnel:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((self.host, self.port))
             self.connected = True
-        except (socket.error, ConnectionRefusedError):
+            self._handshake_as_client()
+        except (socket.error, ConnectionRefusedError, ConnectionError):
             self.connected = False
         return self.connected
+
+    def _handshake_as_client(self):
+        self.kem = KEM()
+        own_pub = self.kem.generate_keypair()
+
+        _send_framed(self.sock, MSG_TYPE_HANDSHAKE, own_pub)
+        _, peer_pub = _recv_framed(self.sock)
+        self.peer_public_key = peer_pub
+
+        ciphertext, shared_secret = encapsulate(peer_pub)
+        _send_framed(self.sock, MSG_TYPE_HANDSHAKE, ciphertext)
+        self.shared_secret = shared_secret
+
+    def _handshake_as_server(self):
+        self.kem = KEM()
+        own_pub = self.kem.generate_keypair()
+
+        _, peer_pub = _recv_framed(self.sock)
+        self.peer_public_key = peer_pub
+        _send_framed(self.sock, MSG_TYPE_HANDSHAKE, own_pub)
+
+        _, ciphertext = _recv_framed(self.sock)
+        self.shared_secret = self.kem.decapsulate(ciphertext)
 
     def send(self, data: bytes) -> bool:
         if not self.connected:
@@ -108,10 +134,9 @@ class Tunnel:
 
 
 class TunnelServer:
-    def __init__(self, host: str, port: int, shared_secret: bytes = None, monitor_factory=None):
+    def __init__(self, host: str, port: int, monitor_factory=None):
         self.host = host
         self.port = port
-        self.shared_secret = shared_secret
         self.listen_sock = None
         self.monitor_factory = monitor_factory
 
@@ -123,9 +148,10 @@ class TunnelServer:
 
     def accept(self) -> "Tunnel":
         conn, addr = self.listen_sock.accept()
-        peer_tunnel = Tunnel(host=addr[0], port=addr[1], shared_secret=self.shared_secret)
+        peer_tunnel = Tunnel(host=addr[0], port=addr[1])
         peer_tunnel.sock = conn
         peer_tunnel.connected = True
+        peer_tunnel._handshake_as_server()
         if self.monitor_factory is not None:
             peer_tunnel.monitor = self.monitor_factory()
         return peer_tunnel
