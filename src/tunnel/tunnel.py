@@ -41,6 +41,7 @@ class Tunnel:
         self.kem = kem
         self.monitor = None
         self._responder = None
+        self._in_anomaly = False
 
     def connect(self) -> bool:
         try:
@@ -83,13 +84,17 @@ class Tunnel:
             if self.monitor is not None:
                 for byte in plaintext:
                     result = self.monitor.update(byte)
-                    if result["anomaly"] and self.peer_public_key is not None:
-                        from src.entropy_monitor.response import KeyRotationResponder
-                        if self._responder is None:
-                            self._responder = KeyRotationResponder()
-                        rekey_ciphertext, new_secret = self._responder.respond(result, self.peer_public_key)
-                        _send_framed(self.sock, MSG_TYPE_REKEY, rekey_ciphertext)
-                        self.shared_secret = new_secret
+                    if result["anomaly"] and not self._in_anomaly:
+                        self._in_anomaly = True
+                        if self.peer_public_key is not None:
+                            from src.entropy_monitor.response import KeyRotationResponder
+                            if self._responder is None:
+                                self._responder = KeyRotationResponder()
+                            rekey_ciphertext, new_secret = self._responder.respond(result, self.peer_public_key)
+                            _send_framed(self.sock, MSG_TYPE_REKEY, rekey_ciphertext)
+                            self.shared_secret = new_secret
+                    elif not result["anomaly"]:
+                        self._in_anomaly = False
 
             return plaintext
         except (socket.error, ConnectionError):
