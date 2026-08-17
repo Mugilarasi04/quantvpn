@@ -8,7 +8,7 @@ from src.entropy_monitor.entropy_monitor import EntropyMonitor
 
 
 def make_monitor():
-    return EntropyMonitor(window_size=50, threshold=0.5)
+    return EntropyMonitor(window_size=100, threshold=1.5)
 
 
 def main():
